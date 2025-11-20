@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BodyCheck - Entrenador Inteligente</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+    <style>
+        :root {
+            --primary: #2C3E50;
+            --secondary: #3498DB;
+            --accent: #E74C3C;
+            --success: #27AE60;
+            --warning: #F39C12;
+            --dark: #1A252F;
+            --light: #ECF0F1;
+            --gray: #95A5A6;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, var(--primary), var(--dark));
+            color: var(--light);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            padding: 30px 0;
+            margin-bottom: 30px;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+        
+        .logo-icon {
+            font-size: 2.5rem;
+            color: var(--accent);
+        }
+        
+        h1 {
+            font-size: 2.8rem;
+            font-weight: 700;
+            background: linear-gradient(to right, var(--light), var(--secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            color: var(--gray);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        @media (max-width: 900px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .video-container {
+            background: var(--dark);
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+        
+        .video-feed {
+            width: 100%;
+            height: 400px;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--gray);
+            font-size: 1.2rem;
+        }
+        
+        #videoElement {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        #outputCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        .info-panel {
+            background: rgba(26, 37, 47, 0.8);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .panel-title {
+            font-size: 1.5rem;
+            color: var(--secondary);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .stat-card {
+            background: rgba(44, 62, 80, 0.7);
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--light);
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+        
+        .progress-container {
+            margin-top: 10px;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: var(--success);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        
+        .feedback-container {
+            background: rgba(44, 62, 80, 0.7);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 10px;
+        }
+        
+        .feedback-text {
+            font-size: 1.2rem;
+            text-align: center;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.3s ease;
+        }
+        
+        .feedback-good {
+            color: var(--success);
+        }
+        
+        .feedback-warning {
+            color: var(--warning);
+        }
+        
+        .feedback-error {
+            color: var(--accent);
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: var(--secondary);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2980B9;
+            transform: translateY(-2px);
+        }
+        
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #219955;
+            transform: translateY(-2px);
+        }
+        
+        .btn-warning {
+            background: var(--warning);
+            color: white;
+        }
+        
+        .btn-warning:hover {
+            background: #E67E22;
+            transform: translateY(-2px);
+        }
+        
+        .btn-danger {
+            background: var(--accent);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #CB4335;
+            transform: translateY(-2px);
+        }
+        
+        .exercise-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .exercise-card {
+            background: var(--dark);
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            text-align: center;
+        }
+        
+        .exercise-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .exercise-icon {
+            font-size: 3rem;
+            padding: 20px;
+            background: rgba(52, 152, 219, 0.1);
+        }
+        
+        .exercise-content {
+            padding: 20px;
+        }
+        
+        .exercise-name {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: var(--light);
+        }
+        
+        .exercise-description {
+            color: var(--gray);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .status-active {
+            background: var(--success);
+        }
+        
+        .status-inactive {
+            background: var(--gray);
+        }
+        
+        .status-warning {
+            background: var(--warning);
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 50px;
+            padding: 20px;
+            color: var(--gray);
+            font-size: 0.9rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .angle-display {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 1rem;
+            font-weight: 600;
+            z-index: 10;
+        }
+        
+        .workout-complete {
+            text-align: center;
+            padding: 40px;
+            background: rgba(26, 37, 47, 0.9);
+            border-radius: 15px;
+            margin-top: 30px;
+            display: none;
+        }
+        
+        .workout-complete.show {
+            display: block;
+        }
+        
+        .completion-icon {
+            font-size: 4rem;
+            color: var(--success);
+            margin-bottom: 20px;
+        }
+        
+        .completion-title {
+            font-size: 2rem;
+            margin-bottom: 15px;
+            color: var(--light);
+        }
+        
+        .completion-message {
+            color: var(--gray);
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(39, 174, 96, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(39, 174, 96, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(39, 174, 96, 0);
+            }
+        }
+
+        .camera-permission {
+            text-align: center;
+            padding: 30px;
+            background: rgba(231, 76, 60, 0.1);
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 1px solid rgba(231, 76, 60, 0.3);
+        }
+
+        .permission-btn {
+            margin-top: 15px;
+        }
+
+        /* Modal de Tutorial */
+        .tutorial-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .tutorial-modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--dark);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            border: 2px solid var(--secondary);
+        }
+
+        .modal-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 2rem;
+            color: var(--light);
+            margin-bottom: 15px;
+        }
+
+        .modal-text {
+            color: var(--gray);
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .modal-btn {
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            min-width: 140px;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--gray);
+            color: var(--gray);
+        }
+
+        .btn-outline:hover {
+            background: var(--gray);
+            color: var(--dark);
+        }
+
+        /* Video Tutorial Container */
+        .video-tutorial-container {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.95);
+        z-index: 1001;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+
+        .video-tutorial-container.show {
+            display: flex;
+        }
+
+        .tutorial-video {
+        width: auto;
+        height: auto;
+        max-width: 90%;
+        max-height: 70vh;
+        border-radius: 15px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        object-fit: contain; /* Cambiado de 'cover' a 'contain' */
+        background: #000;
+    }
+
+        .tutorial-controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .tutorial-title {
+            color: white;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            text-align: center;
+        padding: 0 20px;
+        }
+        .permission-btn {
+            margin-top: 15px;
+            display: flex;
+            justify-content: center;
+        }
+
+        
+        /* Botón para omitir más visible */
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--gray);
+            color: var(--gray);
+        }
+
+        .btn-outline:hover {
+            background: var(--gray);
+            color: var(--dark);
+        }
+
+        /* Botón de cerrar tutorial más grande */
+        #closeTutorialBtn {
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">💪</div>
+                <h1>BodyCheck</h1>
+            </div>
+            <p class="subtitle">Tu entrenador personal de calistenia inteligente. Corrige tu técnica en tiempo real y maximiza tus resultados.</p>
+        </header>
+
+        <div class="camera-permission" id="cameraPermission" style="display: none;">
+            <h3>Permiso de Cámara Requerido</h3>
+            <p>BodyCheck necesita acceso a tu cámara para analizar tu postura y técnica durante los ejercicios.</p>
+            <div class="permission-btn">
+                <button class="btn btn-primary permission-btn" id="enableCameraBtn">
+                    <span>📷</span> Activar Cámara
+                </button>
+            </div>
+        </div>
+        
+        <div class="dashboard">
+            <div class="video-container">
+                <div class="video-feed" id="videoFeed">
+                    <div id="videoPlaceholder">
+                        <p>Selecciona un ejercicio y activa la cámara</p>
+                    </div>
+                    <video id="videoElement" style="display: none;" autoplay playsinline></video>
+                    <canvas id="outputCanvas" style="display: none;"></canvas>
+                </div>
+                <div class="angle-display" id="angleDisplay">Ángulo: --°</div>
+            </div>
+            
+            <div class="info-panel">
+                <div>
+                    <h2 class="panel-title">📊 Progreso del Entrenamiento</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="currentSeries">0/4</div>
+                            <div class="stat-label">Series Completadas</div>
+                            <div class="progress-container">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="seriesProgress" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="currentReps">0/12</div>
+                            <div class="stat-label">Repeticiones Actuales</div>
+                            <div class="progress-container">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="repsProgress" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="totalReps">0</div>
+                            <div class="stat-label">Repeticiones Totales</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="difficulty">--</div>
+                            <div class="stat-label">Nivel de Dificultad</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h2 class="panel-title">🎯 Feedback en Tiempo Real</h2>
+                    <div class="feedback-container">
+                        <div class="feedback-text" id="feedbackText">
+                            Activa la cámara y selecciona un ejercicio
+                        </div>
+                        <div class="status-indicator">
+                            <div class="status-dot status-inactive" id="statusDot"></div>
+                            <span id="statusText">Esperando inicio</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <button class="btn btn-primary" id="startBtn">
+                        <span>▶️</span> Iniciar Entrenamiento
+                    </button>
+                    <button class="btn btn-warning" id="pauseBtn" disabled>
+                        <span>⏸️</span> Pausar
+                    </button>
+                    <button class="btn btn-danger" id="resetBtn">
+                        <span>🔄</span> Reiniciar
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div>
+            <h2 class="panel-title">🏋️ Selecciona tu Ejercicio</h2>
+            <div class="exercise-selector">
+                <div class="exercise-card" data-exercise="biceps">
+                    <div class="exercise-icon">💪</div>
+                    <div class="exercise-content">
+                        <h3 class="exercise-name">Curl de Bíceps</h3>
+                        <p class="exercise-description">Ejercicio de aislamiento para brazos. Enfocado en el desarrollo del bíceps braquial.</p>
+                    </div>
+                </div>
+                <div class="exercise-card" data-exercise="squat">
+                    <div class="exercise-icon">🦵</div>
+                    <div class="exercise-content">
+                        <h3 class="exercise-name">Sentadillas</h3>
+                        <p class="exercise-description">Ejercicio compuesto para piernas y glúteos. Mejora fuerza y resistencia inferior.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="workout-complete" id="workoutComplete">
+            <div class="completion-icon">🎉</div>
+            <h2 class="completion-title">¡Entrenamiento Completado!</h2>
+            <p class="completion-message" id="completionMessage">Has completado todas las series y repeticiones. Excelente trabajo, sigue así.</p>
+            <button class="btn btn-success" id="newWorkoutBtn">
+                <span>🔄</span> Nuevo Entrenamiento
+            </button>
+        </div>
+
+        <!-- Modal de Tutorial -->
+        <div class="tutorial-modal" id="tutorialModal">
+            <div class="modal-content">
+                <div class="modal-icon">🎬</div>
+                <h2 class="modal-title">¿Ver Tutorial?</h2>
+                <p class="modal-text" id="tutorialModalText">
+                    ¿Te gustaría ver un tutorial con la técnica correcta antes de comenzar el ejercicio?
+                </p>
+                <div class="modal-buttons">
+                    <button class="btn btn-success modal-btn" id="watchTutorialBtn">
+                        <span>📺</span> Ver Tutorial
+                    </button>
+                    <button class="btn btn-outline modal-btn" id="skipTutorialBtn">
+                        <span>⏭️</span> Omitir
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contenedor de Video Tutorial -->
+        <div class="video-tutorial-container" id="videoTutorialContainer">
+            <h3 class="tutorial-title" id="tutorialVideoTitle">Tutorial de Ejercicio</h3>
+            <video class="tutorial-video" id="tutorialVideo" controls>
+                <source src="" type="video/mp4">
+                Tu navegador no soporta el elemento de video.
+            </video>
+            <div class="tutorial-controls">
+                <button class="btn btn-primary" id="closeTutorialBtn">
+                    <span>✅</span> Comenzar Entrenamiento
+                </button>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>BodyCheck - Entrenador Inteligente de Calistenia &copy; 2025 | Tecnología MediaPipe Pose | Hecho por: Sharith Santos y Linda Sofía Moreno</p>
+        </div>
+    </div>
+
+    <script>
+        // Estado de la aplicación
+        const state = {
+            currentExercise: null,
+            isActive: false,
+            isPaused: false,
+            seriesCompleted: 0,
+            currentReps: 0,
+            totalReps: 0,
+            difficulty: '--',
+            feedback: 'Activa la cámara y selecciona un ejercicio',
+            feedbackType: 'neutral',
+            angle: 0,
+            targetSeries: 4,
+            targetReps: 12,
+            cameraActive: false,
+            pose: null,
+            lastStage: null,
+            lastMoveTime: Date.now(),
+            pendingExercise: null
+        };
+
+        // Elementos DOM
+        const videoElement = document.getElementById('videoElement');
+        const outputCanvas = document.getElementById('outputCanvas');
+        const videoPlaceholder = document.getElementById('videoPlaceholder');
+        const angleDisplay = document.getElementById('angleDisplay');
+        const currentSeries = document.getElementById('currentSeries');
+        const currentReps = document.getElementById('currentReps');
+        const totalReps = document.getElementById('totalReps');
+        const difficulty = document.getElementById('difficulty');
+        const feedbackText = document.getElementById('feedbackText');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const seriesProgress = document.getElementById('seriesProgress');
+        const repsProgress = document.getElementById('repsProgress');
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const exerciseCards = document.querySelectorAll('.exercise-card');
+        const workoutComplete = document.getElementById('workoutComplete');
+        const completionMessage = document.getElementById('completionMessage');
+        const newWorkoutBtn = document.getElementById('newWorkoutBtn');
+        const cameraPermission = document.getElementById('cameraPermission');
+        const enableCameraBtn = document.getElementById('enableCameraBtn');
+        
+        // Elementos del modal de tutorial
+        const tutorialModal = document.getElementById('tutorialModal');
+        const tutorialModalText = document.getElementById('tutorialModalText');
+        const watchTutorialBtn = document.getElementById('watchTutorialBtn');
+        const skipTutorialBtn = document.getElementById('skipTutorialBtn');
+        const videoTutorialContainer = document.getElementById('videoTutorialContainer');
+        const tutorialVideo = document.getElementById('tutorialVideo');
+        const tutorialVideoTitle = document.getElementById('tutorialVideoTitle');
+        const closeTutorialBtn = document.getElementById('closeTutorialBtn');
+
+        // URLs de videos tutoriales (puedes reemplazar con tus propios videos)
+        const tutorialVideos = {
+            biceps: './demos//biceps_tutorial.mp4',
+            squat: './demos/sentadilla.mp4'
+        };
+
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', async () => {
+            setupEventListeners();
+            updateUI();
+            initializePoseDetection();
+        });
+
+        // Inicializar detección de poses con MediaPipe
+        async function initializePoseDetection() {
+            try {
+                state.pose = new Pose({
+                    locateFile: (file) => {
+                        return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+                    }
+                });
+
+                state.pose.setOptions({
+                    modelComplexity: 1,
+                    smoothLandmarks: true,
+                    enableSegmentation: false,
+                    smoothSegmentation: true,
+                    minDetectionConfidence: 0.5,
+                    minTrackingConfidence: 0.5
+                });
+
+                state.pose.onResults(onPoseResults);
+
+                // Solicitar permiso de cámara
+                cameraPermission.style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error inicializando MediaPipe Pose:', error);
+                feedbackText.textContent = 'Error al inicializar el detector de poses';
+            }
+        }
+
+        // Configurar event listeners
+        function setupEventListeners() {
+            // Selección de ejercicios
+            exerciseCards.forEach(card => {
+                card.addEventListener('click', () => {
+                    if (state.isActive) return;
+                    
+                    const exercise = card.dataset.exercise;
+                    state.pendingExercise = exercise;
+                    
+                    // Mostrar modal de tutorial
+                    showTutorialModal(exercise);
+                });
+            });
+            
+            // Botones de control
+            startBtn.addEventListener('click', startWorkout);
+            pauseBtn.addEventListener('click', togglePause);
+            resetBtn.addEventListener('click', resetWorkout);
+            newWorkoutBtn.addEventListener('click', resetWorkout);
+            enableCameraBtn.addEventListener('click', enableCamera);
+            
+            // Botones del modal de tutorial
+            watchTutorialBtn.addEventListener('click', watchTutorial);
+            skipTutorialBtn.addEventListener('click', skipTutorial);
+            closeTutorialBtn.addEventListener('click', closeTutorial);
+        }
+
+        // Mostrar modal de tutorial
+        function showTutorialModal(exercise) {
+            const exerciseName = getExerciseName(exercise);
+            tutorialModalText.textContent = `¿Te gustaría ver un tutorial con la técnica correcta antes de comenzar ${exerciseName}?`;
+            tutorialModal.classList.add('show');
+        }
+
+        // Omitir tutorial
+        function skipTutorial() {
+            tutorialModal.classList.remove('show');
+            if (state.pendingExercise) {
+                selectExercise(state.pendingExercise);
+            }
+        }
+
+        // Ver tutorial
+        function watchTutorial() {
+            tutorialModal.classList.remove('show');
+            
+            const exercise = state.pendingExercise;
+            const videoUrl = tutorialVideos[exercise];
+            const exerciseName = getExerciseName(exercise);
+            
+            if (videoUrl) {
+                tutorialVideoTitle.textContent = `Tutorial: ${exerciseName}`;
+                tutorialVideo.src = videoUrl;
+                videoTutorialContainer.classList.add('show');
+                tutorialVideo.play().catch(e => {
+                    console.log('Autoplay prevented, user interaction required');
+                });
+            } else {
+                // Si no hay video tutorial, seleccionar ejercicio directamente
+                selectExercise(exercise);
+            }
+        }
+
+        // Cerrar tutorial y comenzar entrenamiento
+        function closeTutorial() {
+            videoTutorialContainer.classList.remove('show');
+            tutorialVideo.pause();
+            tutorialVideo.currentTime = 0;
+            
+            if (state.pendingExercise) {
+                selectExercise(state.pendingExercise);
+            }
+        }
+
+        // Seleccionar ejercicio (sin tutorial)
+        function selectExercise(exercise) {
+            // Remover selección anterior
+            exerciseCards.forEach(c => c.style.border = 'none');
+            
+            // Seleccionar nuevo ejercicio
+            const selectedCard = document.querySelector(`[data-exercise="${exercise}"]`);
+            if (selectedCard) {
+                selectedCard.style.border = `3px solid ${getExerciseColor(exercise)}`;
+            }
+            
+            state.currentExercise = exercise;
+            
+            // Actualizar UI
+            updateExerciseInfo();
+            updateUI();
+            
+            // Dar feedback inicial
+            if (state.cameraActive) {
+                state.feedback = `Ejercicio seleccionado: ${getExerciseName(state.currentExercise)}. Ponte frente a la cámara.`;
+                state.feedbackType = 'good';
+            } else {
+                state.feedback = `Ejercicio seleccionado: ${getExerciseName(state.currentExercise)}. Activa la cámara para comenzar.`;
+                state.feedbackType = 'good';
+            }
+            
+            updateUI();
+            state.pendingExercise = null;
+        }
+
+        // Activar cámara
+        async function enableCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: 1280, 
+                        height: 720,
+                        facingMode: 'user'
+                    } 
+                });
+                
+                videoElement.srcObject = stream;
+                videoElement.style.display = 'block';
+                outputCanvas.style.display = 'block';
+                videoPlaceholder.style.display = 'none';
+                cameraPermission.style.display = 'none';
+                
+                state.cameraActive = true;
+                state.feedback = 'Cámara activada. Selecciona un ejercicio para comenzar.';
+                state.feedbackType = 'good';
+                
+                updateUI();
+                
+                // Iniciar procesamiento de video
+                const camera = new Camera(videoElement, {
+                    onFrame: async () => {
+                        if (state.pose) {
+                            await state.pose.send({ image: videoElement });
+                        }
+                    },
+                    width: 1280,
+                    height: 720
+                });
+                camera.start();
+                
+            } catch (error) {
+                console.error('Error accediendo a la cámara:', error);
+                state.feedback = 'Error al acceder a la cámara. Asegúrate de permitir el acceso.';
+                state.feedbackType = 'error';
+                updateUI();
+            }
+        }
+
+        // Procesar resultados de MediaPipe Pose
+        function onPoseResults(results) {
+            const canvasCtx = outputCanvas.getContext('2d');
+            outputCanvas.width = videoElement.videoWidth;
+            outputCanvas.height = videoElement.videoHeight;
+            
+            // Dibujar video
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+            canvasCtx.drawImage(results.image, 0, 0, outputCanvas.width, outputCanvas.height);
+            
+            // Dibujar landmarks si se detectan
+            if (results.poseLandmarks) {
+                drawLandmarks(canvasCtx, results.poseLandmarks);
+                
+                // Procesar ejercicio si está activo
+                if (state.isActive && !state.isPaused) {
+                    processExercise(results.poseLandmarks);
+                }
+            }
+            
+            canvasCtx.restore();
+        }
+
+        // Dibujar landmarks y conexiones
+        function drawLandmarks(ctx, landmarks) {
+            // Dibujar conexiones
+            drawConnections(ctx, landmarks, POSE_CONNECTIONS, {
+                color: '#00FF00',
+                lineWidth: 2
+            });
+            
+            // Dibujar puntos
+            drawLandmarks(ctx, landmarks, {
+                color: '#FF0000',
+                lineWidth: 1,
+                radius: 2
+            });
+        }
+
+        // Procesar ejercicio basado en landmarks
+        function processExercise(landmarks) {
+            if (!state.currentExercise) return;
+
+            let angle = 0;
+            let feedback = '';
+            let color = 'neutral';
+
+            switch (state.currentExercise) {
+                case 'biceps':
+                    const bicepsData = processBiceps(landmarks);
+                    angle = bicepsData.angle;
+                    feedback = bicepsData.feedback;
+                    color = bicepsData.color;
+                    break;
+                    
+                case 'squat':
+                    const squatData = processSquat(landmarks);
+                    angle = squatData.angle;
+                    feedback = squatData.feedback;
+                    color = squatData.color;
+                    break;
+            }
+
+            // Actualizar estado
+            state.angle = Math.round(angle);
+            state.feedback = feedback;
+            state.feedbackType = color;
+            
+            // Actualizar UI
+            updateUI();
+        }
+
+        // Procesar curl de bíceps
+        function processBiceps(landmarks) {
+            // Calcular ángulo del codo
+            const shoulder = landmarks[11]; // Right shoulder
+            const elbow = landmarks[13];    // Right elbow
+            const wrist = landmarks[15];    // Right wrist
+            
+            const angle = calculateAngle(shoulder, elbow, wrist);
+            
+            let feedback = '';
+            let color = 'neutral';
+            
+            // Lógica de detección de repeticiones
+            if (angle > 160 && state.lastStage !== 'extended') {
+                state.lastStage = 'extended';
+            } else if (angle < 60 && state.lastStage === 'extended') {
+                // Repetición completada
+                state.currentReps++;
+                state.totalReps++;
+                state.lastStage = 'flexed';
+                feedback = getMotivationalMessage();
+                color = 'good';
+                
+                // Verificar fin de serie
+                checkSeriesCompletion();
+            } else if (angle < 60) {
+                feedback = '¡Flexiona más el brazo!';
+                color = 'warning';
+            } else if (angle > 140) {
+                feedback = 'Extiende completamente el brazo';
+                color = 'warning';
+            }
+            
+            // Detectar inactividad
+            detectInactivity();
+            
+            return { angle, feedback, color };
+        }
+
+        // Procesar sentadillas
+        function processSquat(landmarks) {
+            // Calcular ángulo de la rodilla
+            const hip = landmarks[23];      // Right hip
+            const knee = landmarks[25];     // Right knee
+            const ankle = landmarks[27];    // Right ankle
+            
+            const angle = calculateAngle(hip, knee, ankle);
+            
+            let feedback = '';
+            let color = 'neutral';
+            
+            // Lógica de detección de repeticiones
+            if (angle > 160 && state.lastStage !== 'up') {
+                state.lastStage = 'up';
+            } else if (angle < 90 && state.lastStage === 'up') {
+                // Repetición completada
+                state.currentReps++;
+                state.totalReps++;
+                state.lastStage = 'down';
+                feedback = getMotivationalMessage();
+                color = 'good';
+                
+                // Verificar fin de serie
+                checkSeriesCompletion();
+            } else if (angle > 110) {
+                feedback = '¡Baja más! Flexiona hasta 90 grados';
+                color = 'warning';
+            } else if (angle < 70) {
+                feedback = 'No bajes demasiado, mantén la espalda recta';
+                color = 'warning';
+            }
+            
+            // Detectar inactividad
+            detectInactivity();
+            
+            return { angle, feedback, color };
+        }
+
+        // Calcular ángulo entre tres puntos
+        function calculateAngle(a, b, c) {
+            const ab = [b.x - a.x, b.y - a.y];
+            const bc = [c.x - b.x, c.y - b.y];
+            
+            const dotProduct = ab[0] * bc[0] + ab[1] * bc[1];
+            const magnitudeAB = Math.sqrt(ab[0] * ab[0] + ab[1] * ab[1]);
+            const magnitudeBC = Math.sqrt(bc[0] * bc[0] + bc[1] * bc[1]);
+            
+            let angle = Math.acos(dotProduct / (magnitudeAB * magnitudeBC));
+            angle = angle * (180 / Math.PI);
+            
+            return angle;
+        }
+
+        // Detectar inactividad
+        function detectInactivity() {
+            const now = Date.now();
+            const timeSinceLastMove = now - state.lastMoveTime;
+            
+            if (timeSinceLastMove > 4000) { // 4 segundos
+                state.feedback = '¡No te detengas! Sigue con el ejercicio';
+                state.feedbackType = 'error';
+                state.lastMoveTime = now;
+            } else {
+                state.lastMoveTime = now;
+            }
+        }
+
+        // Verificar si se completó una serie
+        function checkSeriesCompletion() {
+            if (state.currentReps >= state.targetReps) {
+                state.seriesCompleted++;
+                state.currentReps = 0;
+                
+                if (state.seriesCompleted >= state.targetSeries) {
+                    completeWorkout();
+                } else {
+                    state.feedback = `¡Serie ${state.seriesCompleted} completada! Descansa 60 segundos.`;
+                    state.feedbackType = 'good';
+                    state.isPaused = true;
+                    
+                    // Reanudar automáticamente después de 60 segundos
+                    setTimeout(() => {
+                        if (state.isActive) {
+                            state.isPaused = false;
+                            state.feedback = `¡Comienza la serie ${state.seriesCompleted + 1}!`;
+                            updateUI();
+                        }
+                    }, 60000);
+                }
+            }
+            
+            // Actualizar dificultad
+            updateDifficulty();
+        }
+
+        // Actualizar nivel de dificultad
+        function updateDifficulty() {
+            if (state.seriesCompleted > 0) {
+                const performance = state.currentReps / state.targetReps;
+                if (performance < 0.5) {
+                    state.difficulty = 'Alta';
+                } else if (performance < 0.8) {
+                    state.difficulty = 'Media';
+                } else {
+                    state.difficulty = 'Baja';
+                }
+            }
+        }
+
+        // Obtener mensaje motivacional
+        function getMotivationalMessage() {
+            const messages = [
+                "¡Excelente!",
+                "¡Bien hecho!",
+                "¡Perfecta técnica!",
+                "¡Así se hace!",
+                "¡Continúa así!",
+                "¡Vas muy bien!"
+            ];
+            return messages[Math.floor(Math.random() * messages.length)];
+        }
+
+        // Iniciar entrenamiento
+        function startWorkout() {
+            if (!state.currentExercise) {
+                state.feedback = 'Por favor, selecciona un ejercicio primero.';
+                state.feedbackType = 'error';
+                updateUI();
+                return;
+            }
+            
+            if (!state.cameraActive) {
+                state.feedback = 'Por favor, activa la cámara primero.';
+                state.feedbackType = 'error';
+                updateUI();
+                return;
+            }
+            
+            state.isActive = true;
+            state.isPaused = false;
+            state.lastMoveTime = Date.now();
+            
+            state.feedback = `¡Comenzando ${getExerciseName(state.currentExercise)}! Objetivo: ${state.targetSeries} series de ${state.targetReps} repeticiones.`;
+            state.feedbackType = 'good';
+            
+            updateUI();
+        }
+
+        // Pausar/Reanudar entrenamiento
+        function togglePause() {
+            state.isPaused = !state.isPaused;
+            
+            if (state.isPaused) {
+                state.feedback = 'Entrenamiento pausado';
+            } else {
+                state.feedback = '¡Entrenamiento reanudado!';
+                state.lastMoveTime = Date.now();
+            }
+            
+            updateUI();
+        }
+
+        // Reiniciar entrenamiento
+        function resetWorkout() {
+            state.isActive = false;
+            state.isPaused = false;
+            state.seriesCompleted = 0;
+            state.currentReps = 0;
+            state.totalReps = 0;
+            state.difficulty = '--';
+            state.lastStage = null;
+            
+            if (state.cameraActive) {
+                state.feedback = 'Selecciona un ejercicio para comenzar';
+            } else {
+                state.feedback = 'Activa la cámara y selecciona un ejercicio';
+            }
+            
+            state.feedbackType = 'neutral';
+            
+            workoutComplete.classList.remove('show');
+            updateUI();
+        }
+
+        // Completar entrenamiento
+        function completeWorkout() {
+            state.isActive = false;
+            
+            completionMessage.textContent = 
+                `¡Felicidades! Has completado ${state.targetSeries} series de ${state.targetReps} repeticiones de ${getExerciseName(state.currentExercise)}. 
+                Un total de ${state.totalReps} repeticiones. ¡Excelente trabajo!`;
+            
+            workoutComplete.classList.add('show');
+            updateUI();
+        }
+
+        // Actualizar interfaz de usuario
+        function updateUI() {
+            // Actualizar estadísticas
+            currentSeries.textContent = `${state.seriesCompleted}/${state.targetSeries}`;
+            currentReps.textContent = `${state.currentReps}/${state.targetReps}`;
+            totalReps.textContent = state.totalReps;
+            difficulty.textContent = state.difficulty;
+            
+            // Actualizar barras de progreso
+            seriesProgress.style.width = `${(state.seriesCompleted / state.targetSeries) * 100}%`;
+            repsProgress.style.width = `${(state.currentReps / state.targetReps) * 100}%`;
+            
+            // Actualizar feedback
+            feedbackText.textContent = state.feedback;
+            feedbackText.className = 'feedback-text';
+            
+            if (state.feedbackType === 'good') {
+                feedbackText.classList.add('feedback-good');
+            } else if (state.feedbackType === 'warning') {
+                feedbackText.classList.add('feedback-warning');
+            } else if (state.feedbackType === 'error') {
+                feedbackText.classList.add('feedback-error');
+            }
+            
+            // Actualizar estado
+            if (state.isActive && !state.isPaused) {
+                statusDot.className = 'status-dot status-active';
+                statusText.textContent = 'Entrenamiento en curso';
+                startBtn.disabled = true;
+                pauseBtn.disabled = false;
+                pauseBtn.innerHTML = '<span>⏸️</span> Pausar';
+            } else if (state.isActive && state.isPaused) {
+                statusDot.className = 'status-dot status-warning';
+                statusText.textContent = 'Entrenamiento pausado';
+                startBtn.disabled = true;
+                pauseBtn.disabled = false;
+                pauseBtn.innerHTML = '<span>▶️</span> Reanudar';
+            } else {
+                statusDot.className = 'status-dot status-inactive';
+                statusText.textContent = 'Esperando inicio';
+                startBtn.disabled = false;
+                pauseBtn.disabled = true;
+            }
+            
+            // Actualizar ángulo
+            angleDisplay.textContent = `Ángulo: ${state.angle}°`;
+            
+            // Mostrar/Ocultar botones según el estado
+            startBtn.style.display = state.isActive ? 'none' : 'flex';
+            pauseBtn.style.display = state.isActive ? 'flex' : 'none';
+        }
+
+        // Actualizar información del ejercicio seleccionado
+        function updateExerciseInfo() {
+            // En una implementación real, aquí se cargarían los detalles específicos del ejercicio
+        }
+
+        // Obtener color para el ejercicio
+        function getExerciseColor(exercise) {
+            const colors = {
+                biceps: '#E74C3C',
+                squat: '#3498DB',
+                pushup: '#27AE60',
+                plank: '#F39C12'
+            };
+            return colors[exercise] || '#3498DB';
+        }
+
+        // Obtener nombre del ejercicio
+        function getExerciseName(exercise) {
+            const names = {
+                biceps: 'Curl de Bíceps',
+                squat: 'Sentadillas',
+                pushup: 'Flexiones',
+                plank: 'Plancha'
+            };
+            return names[exercise] || 'Ejercicio';
+        }
+
+        // Utility functions for drawing (simplified versions)
+        function drawLandmarks(ctx, landmarks, options) {
+            if (!landmarks) return;
+            
+            const { color = '#FF0000', lineWidth = 1, radius = 2 } = options || {};
+            
+            ctx.fillStyle = color;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = lineWidth;
+            
+            landmarks.forEach(landmark => {
+                if (landmark.visibility > 0.5) {
+                    const x = landmark.x * outputCanvas.width;
+                    const y = landmark.y * outputCanvas.height;
+                    
+                    ctx.beginPath();
+                    ctx.arc(x, y, radius, 0, 2 * Math.PI);
+                    ctx.fill();
+                }
+            });
+        }
+
+        function drawConnections(ctx, landmarks, connections, options) {
+            if (!landmarks || !connections) return;
+            
+            const { color = '#00FF00', lineWidth = 2 } = options || {};
+            
+            ctx.strokeStyle = color;
+            ctx.lineWidth = lineWidth;
+            
+            connections.forEach(connection => {
+                const [start, end] = connection;
+                const startLandmark = landmarks[start];
+                const endLandmark = landmarks[end];
+                
+                if (startLandmark.visibility > 0.5 && endLandmark.visibility > 0.5) {
+                    const startX = startLandmark.x * outputCanvas.width;
+                    const startY = startLandmark.y * outputCanvas.height;
+                    const endX = endLandmark.x * outputCanvas.width;
+                    const endY = endLandmark.y * outputCanvas.height;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(startX, startY);
+                    ctx.lineTo(endX, endY);
+                    ctx.stroke();
+                }
+            });
+        }
+
+        // POSE_CONNECTIONS simulation
+        const POSE_CONNECTIONS = [
+            [11, 12], [11, 13], [13, 15], [12, 14], [14, 16], // Brazos
+            [11, 23], [12, 24], [23, 24], // Torso
+            [23, 25], [25, 27], [24, 26], [26, 28], // Piernas
+        ];
+    </script>
+</body>
+</html>
